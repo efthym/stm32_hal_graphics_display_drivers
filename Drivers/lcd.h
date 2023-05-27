@@ -60,7 +60,8 @@ extern "C" {
    attention: the byte order should also be in reverse order in memory blocks containing images,
          because the displayed image will be incorrect. This is necessary because DMA can only write to the
          fsmc 8-bit peripheral in ascending byte order, but the LCD display requires reverse pixel byte order. */
-#define  LCD_REVERSE16     0
+#define  LCD_REVERSE16     1
+// AE: REVERSE is needed for DMA in fsmc 8 bits mode. In SPI it is not needed
 
 //=============================================================================
 /* Interface section */

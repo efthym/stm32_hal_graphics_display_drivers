@@ -13,7 +13,10 @@
 #include "lcd_io_spi_hal.h"
 
 //-----------------------------------------------------------------------------
-#define  DMA_MINSIZE          0x0010
+//#define  DMA_MINSIZE          0x0010
+// AE: Wrting strings fails in DMA. So I increase the minimum size to avoid the problem!
+// AE: TODO: It may be that DMA FIFO is required to for this feature. I'should check.
+#define  DMA_MINSIZE          0x0100
 #define  DMA_MAXSIZE          0xFFFE
 /* note:
    - DMA_MINSIZE: if the transacion Size < DMA_MINSIZE -> not use the DMA for transaction

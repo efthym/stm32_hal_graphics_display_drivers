@@ -58,10 +58,11 @@ void LCD_IO_DmaRxCpltCallback(DMA_HandleTypeDef *hdma);
 /* Data direction
    - 0: only draw mode
    - 1: bidirectional mode */
+// AE: I don't think I can read from my LCD when in 8bit mode. I may read the lo byte only.
 #define LCD_DATADIR           0
 
 /* DMA */
-#define LCD_DMA_TX            0
+#define LCD_DMA_TX            1
 #define LCD_DMA_RX            0
 
 /* Memory to memory DMA handle name (see in main.c) */
@@ -96,4 +97,7 @@ void LCD_IO_DmaRxCpltCallback(DMA_HandleTypeDef *hdma);
    note: if 0 -> does not use DMA for 24-bit drawing and reading */
 #define LCD_RGB24_BUFFSIZE    0
 
-#endif // __LCD_IO_FSMC8_H
+// AE: seems to be forgotten for fsmc
+#define LCD_BLON 1
+
+#endif // __LCD_IO_FSMC8_H

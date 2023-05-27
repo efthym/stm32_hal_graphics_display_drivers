@@ -100,7 +100,8 @@
 /* SPI CS mode (only hardware SPI)
    - 0: software CS operation (hardware NSS signal: disabled)
    - 1: hardware CS operation (hardware NSS signal: enabled) */
-#define TS_CS_MODE            1
+#define TS_CS_MODE            0
+// AE: with hardware NSS, CS rises after the command and XPT2046 does not reply, So must **not** use hardware NSS
 
 /* SPI write and read speed (if deleted and hardware SPI -> setting in CUBEMX)
    - software SPI: TS_SCK clock delay (see the TS_IO_Delay function)

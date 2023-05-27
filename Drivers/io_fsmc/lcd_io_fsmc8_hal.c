@@ -13,6 +13,7 @@
 #include "lcd_io.h"
 #include "lcd_io_fsmc8_hal.h"
 
+
 //-----------------------------------------------------------------------------
 #define  DMA_MINSIZE       0x0040
 #define  DMA_MAXSIZE       0xFFFE
@@ -63,6 +64,8 @@ uint32_t LCD_IO_DmaBusy(void)
 #define DMA_STATUS_16BIT      (1 << 3)
 #define DMA_STATUS_24BIT      (1 << 4)
 
+// AE: alignment may be important. DMA requires proper data alignment
+__attribute__((aligned(16)))
 struct
 {
   volatile uint32_t status;   /* DMA status (0=free, other: see the DMA_STATUS... macros)  */
@@ -269,24 +272,31 @@ void LCDWriteFillMultiData8and16(uint8_t * pData, uint32_t Size, uint32_t Mode)
   #endif
   { /* DMA mode */
 
+    // AE: Even for 16bit DATA, FSMC is 8 bit, so trasfers should be 8bit.
+    //    The ref manual for F76x says from AHB to FSMC you can move from a large datum to a smaller (16b -> 8b)
+    //    For this the FIFO must be on
+    //    It works!
+    //    
+    //   This DMA channel is memory to memory. However the structures still refer to "periph".
+    //   Periph is the source, so real memory and "memory" is FMC-LCD
+    LCD_DMA_HANDLE.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
     if(Mode & LCD_IO_DATA8)
     { /* 8bit DMA */
-      LCD_DMA_HANDLE.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
+      LCD_DMA_HANDLE.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;  
       LCD_DMA_HANDLE.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
       dmastatus.status = DMA_STATUS_8BIT;
     }
     else
     { /* 16bit DMA */
       LCD_DMA_HANDLE.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
-      LCD_DMA_HANDLE.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
       dmastatus.status = DMA_STATUS_16BIT;
     }
 
-    LCD_DMA_HANDLE.Init.MemInc = DMA_MINC_DISABLE;
+    LCD_DMA_HANDLE.Init.MemInc = DMA_MINC_DISABLE;  // AE: in MEM2MEM the source is the "peripheral", so this is the destination
 
     if(Mode & LCD_IO_FILL)
     { /* fill */
-      LCD_DMA_HANDLE.Init.PeriphInc = DMA_PINC_DISABLE;
+      LCD_DMA_HANDLE.Init.PeriphInc = DMA_PINC_DISABLE;  // AE: Periph means source here, so for fill this is ok
       dmastatus.status |= DMA_STATUS_FILL;
       dmastatus.ptr = (uint32_t)&dmastatus.data;
 
@@ -295,10 +305,7 @@ void LCDWriteFillMultiData8and16(uint8_t * pData, uint32_t Size, uint32_t Mode)
         #if LCD_REVERSE16 == 0
         dmastatus.data = __REVSH(*(uint16_t *)pData);
         #elif LCD_REVERSE16 == 1
-        if(Mode & LCD_IO_REVERSE16)
-          dmastatus.data = *(uint16_t *)pData;
-        else
-          dmastatus.data = __REVSH(*(uint16_t *)pData);
+        dmastatus.data = *(uint16_t *)pData; 
         #endif
       }
       else
@@ -307,7 +314,7 @@ void LCDWriteFillMultiData8and16(uint8_t * pData, uint32_t Size, uint32_t Mode)
     }
     else
     { /* multidata */
-      LCD_DMA_HANDLE.Init.PeriphInc = DMA_PINC_ENABLE;
+      LCD_DMA_HANDLE.Init.PeriphInc = DMA_PINC_ENABLE;  // AE: this is the "source"
       dmastatus.status |= DMA_STATUS_MULTIDATA;
       dmastatus.ptr = (uint32_t)pData;
     }
@@ -341,16 +348,20 @@ void LCDWriteFillMultiData8and16(uint8_t * pData, uint32_t Size, uint32_t Mode)
       else if(Mode & LCD_IO_DATA16)
       { /* fill 16bit */
         #if LCD_REVERSE16 == 0
-        c16 = __REVSH(*pD16);
+        c16 = *pD16;
         #elif LCD_REVERSE16 == 1
-        if(Mode & LCD_IO_REVERSE16)
-          c16 = *pD16;
-        else
-          c16 = __REVSH(*pD16);
+          c16 = __REVSH(*pD16);   // get the RGB565 in the original state first
         #endif
         {
-          while(Size--)
-            *(volatile uint16_t *)LCD_ADDR_DATA = c16;
+          while(Size--) { 
+            /* AE: Original code used 16b transfers. The FMC section of the F76x ref says larger AHB accesses are split, but I get HardFault...
+            // *(volatile uint16_t *)LCD_ADDR_DATA = c16;
+            */
+            // AE: 8bit FSMC I/F, so accesses are uint8_t !
+            // AE: send them as expected by controller: high byte, low byte
+            *(volatile uint8_t *)LCD_ADDR_DATA = (c16 >> 8) & 0xFF;
+            *(volatile uint8_t *)LCD_ADDR_DATA = c16 & 0xFF;
+          }
         }
       }
     }
@@ -366,24 +377,25 @@ void LCDWriteFillMultiData8and16(uint8_t * pData, uint32_t Size, uint32_t Mode)
       }
       else
       { /* multidata 16bit */
-        #if LCD_REVERSE16 == 1
-        if(Mode & LCD_IO_REVERSE16)
-        {
+        #if LCD_REVERSE16 == 0
           while(Size--)
           {
-            *(volatile uint16_t *)LCD_ADDR_DATA = *pD16;
+            c16 = *pD16;
+            // AE: changed to 8bit access
+            *(volatile uint8_t *)LCD_ADDR_DATA = c16 >> 8;
+            *(volatile uint8_t *)LCD_ADDR_DATA = c16 & 0xFF;
             pD16++;
           }
-        }
-        else
+        #else //LCD_REVERSE16 == 1
+          Size <<= 1;  // AE: Convert size from 16b to 8b. The order of the bytes is already reversed. No need to convert to/from 16b
+          // AE: essentially this is LCD_IO_DATA8 with 2x the size.
+          // AE: Not really tested. This combination of options is not really used
+          while(Size--)
+          {
+            *(volatile uint8_t *)LCD_ADDR_DATA = *pData;
+            pData++;
+          }
         #endif
-        {
-          while(Size--)
-          {
-            *(volatile uint16_t *)LCD_ADDR_DATA = __REVSH(*pD16);
-            pD16++;
-          }
-        }
       }
     }
     LcdTransEnd();
@@ -729,6 +741,7 @@ void LCD_IO_Bl_OnOff(uint8_t Bl)
 void LCD_IO_Init(void)
 {
   #if defined(LCD_RST_GPIO_Port) && defined (LCD_RST_Pin)
+  HAL_GPIO_WritePin(LCD_RST_GPIO_Port, LCD_RST_Pin, GPIO_PIN_SET);   // AE: added
   HAL_Delay(10);
   HAL_GPIO_WritePin(LCD_RST_GPIO_Port, LCD_RST_Pin, GPIO_PIN_RESET);
   HAL_Delay(10);
@@ -759,6 +772,8 @@ void LCD_IO_Transaction(uint16_t Cmd, uint8_t *pData, uint32_t Size, uint32_t Du
     *(volatile uint8_t *)LCD_ADDR_BASE = Cmd;
   else if(Mode & LCD_IO_CMD16)
     *(volatile uint16_t *)LCD_ADDR_BASE = __REVSH(Cmd);
+
+  //printf("\nCMD %x ", Cmd);
 
   if(Size == 0)
   { /* only command byte or word */

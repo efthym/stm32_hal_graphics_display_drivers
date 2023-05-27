@@ -35,6 +35,7 @@
 
 #define TS_SPI_TIMEOUT        HAL_MAX_DELAY
 
+// AE: ADC bits: 0 - 12 bits, 1 - 8 bits
 #define XPT2046_MODE          0
 #define XPT2046_SER           0
 #define XPT2046_PD            0
@@ -128,6 +129,7 @@ uint16_t TS_IO_Transaction(uint8_t cmd)
   uint16_t ret;
   TS_CS_ON;
   HAL_SPI_Transmit(&TS_SPI_HANDLE, (uint8_t *)&cmd, 1, TS_SPI_TIMEOUT);
+  // AE: with hardware NSS, CS rises after the command and XPT2046 does not reply, So must **not** use hardware NSS
   #if XPT2046_READDELAY > 0
   TS_IO_Delay(XPT2046_READDELAY);
   #endif
@@ -179,6 +181,7 @@ TS_DrvTypeDef  *ts_drv = &xpt2046_ts_drv;
 //-----------------------------------------------------------------------------
 void xpt2046_ts_Init(uint16_t DeviceAddr)
 {
+  // AE: This is already done in cube.
   #if TS_SPI_HANDLE != -1 && defined(TS_SPI_SPD) && TS_SPI_SPD >= 0 && TS_SPI_SPD <= 7
   TS_SPI_SETBAUDRATE(TS_SPI_HANDLE, TS_SPI_SPD);
   #endif

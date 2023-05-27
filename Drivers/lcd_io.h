@@ -49,7 +49,9 @@ void     LCD_IO_Transaction(uint16_t Cmd, uint8_t *pData, uint32_t Size, uint32_
 
 /* 8 bit write commands */
 #define  LCD_IO_WriteCmd8DataFill16(Cmd, Data, Size) \
-  LCD_IO_Transaction((uint16_t)Cmd, (uint8_t *)&Data, Size, 0, LCD_IO_CMD8 | LCD_IO_WRITE | LCD_IO_DATA16 | LCD_IO_FILL)
+  LCD_IO_Transaction((uint16_t)Cmd, (uint8_t *)&Data, 2*(Size), 0, LCD_IO_CMD8 | LCD_IO_WRITE | LCD_IO_DATA16 | LCD_IO_FILL)
+// AE: Should be LCD_IO_DATA8 and reverse the order of bytes and 2x the size ????
+// LCD_IO_Transaction((uint16_t)Cmd, (uint8_t *)&Data, Size, 0, LCD_IO_CMD8 | LCD_IO_WRITE | LCD_IO_DATA16 | LCD_IO_FILL)
 #define  LCD_IO_WriteCmd8DataFill16to24(Cmd, Data, Size) \
   LCD_IO_Transaction((uint16_t)Cmd, (uint8_t *)&Data, Size, 0, LCD_IO_CMD8 | LCD_IO_WRITE | LCD_IO_DATA16TO24 | LCD_IO_FILL)
 #define  LCD_IO_WriteCmd8MultipleData8(Cmd, pData, Size) \
